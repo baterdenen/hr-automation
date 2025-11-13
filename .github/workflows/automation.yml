@@ -1,0 +1,52 @@
+name: HR Course Automation
+
+on:
+  schedule:
+    # Runs every 4 hours: at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
+    - cron: '0 0,4,8,12,16,20 * * *'
+  workflow_dispatch: # Allows manual triggering from GitHub UI
+
+jobs:
+  run-automation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install Chrome
+      uses: browser-actions/setup-chrome@v1
+      with:
+        chrome-version: stable
+    
+    - name: Install ChromeDriver
+      uses: nanasess/setup-chromedriver@v2
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run automation script
+      env:
+        HR_USERNAME: ${{ secrets.HR_USERNAME }}
+        HR_PASSWORD: ${{ secrets.HR_PASSWORD }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        GOOGLE_CREDENTIALS_JSON: ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+      run: |
+        export DISPLAY=:99
+        python main.py
+    
+    - name: Upload logs (on failure)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: automation-logs
+        path: |
+          *.log
+        retention-days: 7
