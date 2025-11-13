@@ -1,8 +1,3 @@
-"""
-"""HR Course Automation - Clean & Minimal Version
-Automatically registers new course participants and tracks them in Google Sheets
-"""
-
 import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
