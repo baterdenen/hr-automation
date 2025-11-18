@@ -239,47 +239,70 @@ class CourseAutomation:
         self.driver.get(url)
         time.sleep(3)
         
-        # --- Step 1: Register all pending participants efficiently ---
-        self.logger.info("--- Checking for pending participants to register ---")
-        
-        # Find initial number of pending participants (only individual "single" buttons)
-        initial_pending_count = len(self.driver.find_elements(
-            By.CSS_SELECTOR,
-            'i.icon-checkbox-checked2[onclick*="single"]'
-        ))
+        # --- Step 1: Register all pending participants efficiently (with pagination) ---
+        self.logger.info("--- Checking for pending participants to register (with pagination) ---")
 
-        if initial_pending_count == 0:
-            self.logger.info("✓ No pending participants to register.")
-        else:
-            self.logger.info(f"Found {initial_pending_count} pending participants. Registering all...")
-            # Loop through each one by index, re-finding the element each time
-            for i in range(initial_pending_count):
-                self.logger.info(f"  Registering participant [{i+1}/{initial_pending_count}]...")
-                try:
-                    # Always find the list again to avoid stale elements
-                    pending_icons = self.driver.find_elements(
-                        By.CSS_SELECTOR,
-                        'i.icon-checkbox-checked2[onclick*="single"]'
-                    )
-                    if not pending_icons:
-                        self.logger.info("  ✓ No more pending icons found. Continuing...")
-                        break
-                    
-                    # Process the first one in the list
-                    if self.register_participant(pending_icons[0]):
-                        self.logger.info("    ✓ Registered successfully.")
-                        time.sleep(1) # Wait a moment for UI to update
-                    else:
-                        self.logger.warning("    ✗ Registration failed for this participant. Moving to the next.")
-                        # We might need to refresh if a failure breaks the flow
-                        self.driver.get(url)
-                        time.sleep(3)
-                except Exception as e:
-                    self.logger.error(f"    ✗ Error during registration: {e}. Refreshing and continuing.")
+        def click_page(page_number):
+            """Click a pagination button by its pagenumber attribute."""
+            try:
+                btn = self.driver.find_element(
+                    By.CSS_SELECTOR,
+                    f".page-navigation input.number-button[pagenumber='{page_number}']"
+                )
+                # If button is disabled, we consider it not clickable
+                if not btn.is_enabled() or btn.get_attribute("disabled") is not None:
+                    return False
+                self.click_safe(btn)
+                time.sleep(2)
+                return True
+            except Exception:
+                return False
+
+        # We don't know number of pages ahead of time, so iterate sequentially.
+        # Also, after registering someone on page 2+, they may move to page 1.
+        # We'll simply sweep pages 1,2,3,... once per course run.
+        initial_pending_count = 0
+        current_page = 1
+        while True:
+            if current_page > 1:
+                if not click_page(current_page):
+                    # No such page, stop pagination loop
+                    break
+
+            self.logger.info(f"Processing page {current_page} for pending participants...")
+
+            while True:
+                pending_icons = self.driver.find_elements(
+                    By.CSS_SELECTOR,
+                    'i.icon-checkbox-checked2[onclick*="single"]'
+                )
+
+                if not pending_icons:
+                    self.logger.info("  ✓ No more pending participants on this page.")
+                    break
+
+                initial_pending_count += 1
+                self.logger.info(f"  Registering participant on page {current_page} (remaining on this page: {len(pending_icons)})...")
+                if self.register_participant(pending_icons[0]):
+                    self.logger.info("    ✓ Registered successfully.")
+                    time.sleep(1)
+                else:
+                    self.logger.warning("    ✗ Registration failed for this participant. Refreshing course page.")
                     self.driver.get(url)
                     time.sleep(3)
-                    continue
-            self.logger.info("✓ All pending participants have been processed.")
+                    break
+
+            # Try next page (current_page + 1). If not clickable/exists, stop.
+            next_page = current_page + 1
+            # We always attempt to click next page; if it fails, we end.
+            if not click_page(next_page):
+                break
+            current_page = next_page
+
+        if initial_pending_count == 0:
+            self.logger.info("✓ No pending participants to register across all pages.")
+        else:
+            self.logger.info(f"✓ All pending participants have been processed across pages. Total registered: {initial_pending_count}.")
 
         # --- Step 2: Extract emails from ONLY newly registered participants ---
         self.logger.info("\n--- Extracting emails from newly registered participants ---")
