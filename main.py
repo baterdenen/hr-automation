@@ -286,18 +286,45 @@ class CourseAutomation:
                         self.logger.info("  ✓ No more pending participants on this page.")
                         break
 
+                    pending_icon = pending_icons[0]
                     self.logger.info(
                         f"  Registering participant on page {page_number} "
                         f"(remaining on this page: {len(pending_icons)})..."
                     )
 
-                    if self.register_participant(pending_icons[0]):
+                    # Find the table row for this participant
+                    try:
+                        row = pending_icon.find_element(By.XPATH, "./ancestor::tr")
+                        user_link = row.find_element(By.CSS_SELECTOR, 'a[onclick*="dialogUserInfo"]')
+                    except Exception as e:
+                        self.logger.warning(f"    ✗ Could not find row/user link for pending participant: {e}")
+                        user_link = None
+
+                    if self.register_participant(pending_icon):
                         initial_pending_count += 1
                         any_registered_in_sweep = True
                         self.logger.info("    ✓ Registered successfully.")
                         time.sleep(1)
-                        # After registration on page 2, site jumps to page 1 automatically.
-                        # Break inner loop and restart sweep so we don't miss new ones.
+
+                        # Immediately extract email for this exact participant
+                        if user_link is not None:
+                            name, email = self.extract_email(user_link)
+                            if email:
+                                participants.append({
+                                    'course_id': course_id,
+                                    'name': name,
+                                    'email': email,
+                                    'status': 'NEW',
+                                    'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                                })
+                                self.logger.info(f"    ✓ Email captured: {name} - {email}")
+                            else:
+                                self.logger.warning(f"    ✗ Email not found for: {name}")
+                        else:
+                            self.logger.warning("    ✗ No user link found; skipping email extraction for this participant.")
+
+                        # After registration on page 2, the site jumps to page 1.
+                        # Break so the outer logic can restart the sweep.
                         break
                     else:
                         self.logger.warning("    ✗ Registration failed for this participant. Refreshing course page.")
@@ -327,51 +354,8 @@ class CourseAutomation:
             time.sleep(2)
 
         # --- Step 2: Extract emails from ONLY newly registered participants ---
-        self.logger.info("\n--- Extracting emails from newly registered participants ---")
-        
-        participants = []
-        
-        # Only extract emails if we registered new participants
-        if initial_pending_count > 0:
-            self.logger.info(f"Extracting emails for {initial_pending_count} newly registered participant(s)...")
-            
-            # Get all participant links
-            user_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[onclick*="dialogUserInfo"]')
-            
-            if not user_links:
-                self.logger.warning("No participants found on the page.")
-                return []
-
-            # Extract only the last N participants (the newly registered ones)
-            # They appear at the end of the list after registration
-            newly_registered_count = min(initial_pending_count, len(user_links))
-            start_index = len(user_links) - newly_registered_count
-            
-            for i in range(start_index, len(user_links)):
-                # Re-find elements in each iteration to avoid stale element issues
-                current_links = self.driver.find_elements(By.CSS_SELECTOR, 'a[onclick*="dialogUserInfo"]')
-                if i >= len(current_links):
-                    self.logger.warning("Stale element detected, skipping remaining participants.")
-                    break
-                
-                self.logger.info(f"[{i - start_index + 1}/{newly_registered_count}] Processing newly registered participant...")
-                name, email = self.extract_email(current_links[i])
-                
-                if email:
-                    participants.append({
-                        'course_id': course_id,
-                        'name': name,
-                        'email': email,
-                        'status': 'NEW',
-                        'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    })
-                    self.logger.info(f"  ✓ Found: {name} - {email}")
-                else:
-                    self.logger.warning(f"  ✗ Email not found for: {name}")
-                
-                time.sleep(1) # Small delay between extractions
-        else:
-            self.logger.info("No new participants were registered, skipping email extraction.")
+        self.logger.info("\n--- Email extraction performed during registration; skipping separate pass ---")
+        # No extra extraction here.
 
         # --- Step 3: Save unique participants to Google Sheets ---
         if participants:
