@@ -242,10 +242,10 @@ class CourseAutomation:
         # --- Step 1: Register all pending participants efficiently ---
         self.logger.info("--- Checking for pending participants to register ---")
         
-        # Find initial number of pending participants
+        # Find initial number of pending participants (only individual "single" buttons)
         initial_pending_count = len(self.driver.find_elements(
-            By.CSS_SELECTOR, 
-            'i.icon-checkbox-checked2[onclick*="registerDialog"]'
+            By.CSS_SELECTOR,
+            'i.icon-checkbox-checked2[onclick*="single"]'
         ))
 
         if initial_pending_count == 0:
@@ -258,8 +258,8 @@ class CourseAutomation:
                 try:
                     # Always find the list again to avoid stale elements
                     pending_icons = self.driver.find_elements(
-                        By.CSS_SELECTOR, 
-                        'i.icon-checkbox-checked2[onclick*="registerDialog"]'
+                        By.CSS_SELECTOR,
+                        'i.icon-checkbox-checked2[onclick*="single"]'
                     )
                     if not pending_icons:
                         self.logger.info("  ✓ No more pending icons found. Continuing...")
