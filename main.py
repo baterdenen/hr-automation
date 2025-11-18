@@ -239,7 +239,7 @@ class CourseAutomation:
         self.driver.get(url)
         time.sleep(3)
         
-        # --- Step 1: Register all pending participants efficiently (with pagination) ---
+        # --- Step 1: Register all pending participants efficiently (with pagination sweeps) ---
         self.logger.info("--- Checking for pending participants to register (with pagination) ---")
 
         def click_page(page_number):
@@ -249,7 +249,7 @@ class CourseAutomation:
                     By.CSS_SELECTOR,
                     f".page-navigation input.number-button[pagenumber='{page_number}']"
                 )
-                # If button is disabled, we consider it not clickable
+                # If button is disabled, it is not usable
                 if not btn.is_enabled() or btn.get_attribute("disabled") is not None:
                     return False
                 self.click_safe(btn)
@@ -258,51 +258,73 @@ class CourseAutomation:
             except Exception:
                 return False
 
-        # We don't know number of pages ahead of time, so iterate sequentially.
-        # Also, after registering someone on page 2+, they may move to page 1.
-        # We'll simply sweep pages 1,2,3,... once per course run.
         initial_pending_count = 0
-        current_page = 1
+
         while True:
-            if current_page > 1:
-                if not click_page(current_page):
-                    # No such page, stop pagination loop
-                    break
+            any_registered_in_sweep = False
 
-            self.logger.info(f"Processing page {current_page} for pending participants...")
-
+            # Try pages 1,2,3,... in this sweep
+            page_number = 1
             while True:
-                pending_icons = self.driver.find_elements(
-                    By.CSS_SELECTOR,
-                    'i.icon-checkbox-checked2[onclick*="single"]'
-                )
-
-                if not pending_icons:
-                    self.logger.info("  ✓ No more pending participants on this page.")
-                    break
-
-                initial_pending_count += 1
-                self.logger.info(f"  Registering participant on page {current_page} (remaining on this page: {len(pending_icons)})...")
-                if self.register_participant(pending_icons[0]):
-                    self.logger.info("    ✓ Registered successfully.")
-                    time.sleep(1)
-                else:
-                    self.logger.warning("    ✗ Registration failed for this participant. Refreshing course page.")
+                # For page 1, reload the course URL to be safe
+                if page_number == 1:
                     self.driver.get(url)
-                    time.sleep(3)
+                    time.sleep(2)
+                else:
+                    if not click_page(page_number):
+                        break
+
+                self.logger.info(f"Processing page {page_number} for pending participants...")
+
+                while True:
+                    pending_icons = self.driver.find_elements(
+                        By.CSS_SELECTOR,
+                        'i.icon-checkbox-checked2[onclick*="single"]'
+                    )
+
+                    if not pending_icons:
+                        self.logger.info("  ✓ No more pending participants on this page.")
+                        break
+
+                    self.logger.info(
+                        f"  Registering participant on page {page_number} "
+                        f"(remaining on this page: {len(pending_icons)})..."
+                    )
+
+                    if self.register_participant(pending_icons[0]):
+                        initial_pending_count += 1
+                        any_registered_in_sweep = True
+                        self.logger.info("    ✓ Registered successfully.")
+                        time.sleep(1)
+                        # After registration on page 2, site jumps to page 1 automatically.
+                        # Break inner loop and restart sweep so we don't miss new ones.
+                        break
+                    else:
+                        self.logger.warning("    ✗ Registration failed for this participant. Refreshing course page.")
+                        self.driver.get(url)
+                        time.sleep(3)
+                        break
+
+                # If we registered someone, page state likely changed; restart sweep.
+                if any_registered_in_sweep:
                     break
 
-            # Try next page (current_page + 1). If not clickable/exists, stop.
-            next_page = current_page + 1
-            # We always attempt to click next page; if it fails, we end.
-            if not click_page(next_page):
+                page_number += 1
+
+            # If a full sweep registered nobody, we're done.
+            if not any_registered_in_sweep:
                 break
-            current_page = next_page
 
         if initial_pending_count == 0:
             self.logger.info("✓ No pending participants to register across all pages.")
         else:
-            self.logger.info(f"✓ All pending participants have been processed across pages. Total registered: {initial_pending_count}.")
+            self.logger.info(
+                f"✓ All pending participants have been processed across pages. "
+                f"Total registered: {initial_pending_count}."
+            )
+            # Ensure we are on page 1 before email extraction
+            click_page(1)
+            time.sleep(2)
 
         # --- Step 2: Extract emails from ONLY newly registered participants ---
         self.logger.info("\n--- Extracting emails from newly registered participants ---")
