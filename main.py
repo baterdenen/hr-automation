@@ -246,19 +246,39 @@ class CourseAutomation:
 
         def click_page(page_number):
             """Click a pagination button by its pagenumber attribute."""
+            # Strategy 1: Direct Page Number
             try:
-                btn = self.driver.find_element(
-                    By.CSS_SELECTOR,
-                    f".page-navigation input.number-button[pagenumber='{page_number}']"
+                btn = WebDriverWait(self.driver, 3).until(
+                    EC.presence_of_element_located((
+                        By.CSS_SELECTOR,
+                        f".page-navigation input.number-button[pagenumber='{page_number}']"
+                    ))
                 )
-                # If button is disabled, it is not usable
-                if not btn.is_enabled() or btn.get_attribute("disabled") is not None:
-                    return False
-                self.click_safe(btn)
-                time.sleep(2)
-                return True
+                if btn.is_enabled() and btn.get_attribute("disabled") is None:
+                    self.click_safe(btn)
+                    time.sleep(3)
+                    return True
+            except TimeoutException:
+                pass # Fall through to Strategy 2
             except Exception:
-                return False
+                pass
+
+            # Strategy 2: "Next" button (if page number button is hidden/missing)
+            try:
+                # Look for inputs with value ">" or "Next"
+                inputs = self.driver.find_elements(By.CSS_SELECTOR, ".page-navigation input")
+                for inp in inputs:
+                    val = inp.get_attribute("value")
+                    if val and (">" in val or "Next" in val):
+                        if inp.is_enabled() and inp.get_attribute("disabled") is None:
+                            self.logger.info(f"  Using 'Next' button to reach page {page_number}...")
+                            self.click_safe(inp)
+                            time.sleep(3)
+                            return True
+            except Exception:
+                pass
+                
+            return False
 
         initial_pending_count = 0
 
