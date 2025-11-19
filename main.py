@@ -239,6 +239,8 @@ class CourseAutomation:
         self.driver.get(url)
         time.sleep(3)
         
+        participants = []
+        
         # --- Step 1: Register all pending participants efficiently (with pagination sweeps) ---
         self.logger.info("--- Checking for pending participants to register (with pagination) ---")
 
@@ -300,28 +302,41 @@ class CourseAutomation:
                         self.logger.warning(f"    ✗ Could not find row/user link for pending participant: {e}")
                         user_link = None
 
+                    # Extract email FIRST (before registration invalidates the row)
+                    name, email = "N/A", None
+                    if user_link:
+                        name, email = self.extract_email(user_link)
+                    
+                    # Re-fetch pending icon to avoid StaleElementReferenceException
+                    # (The modal opening/closing might have refreshed the DOM)
+                    try:
+                        pending_icons = self.driver.find_elements(
+                            By.CSS_SELECTOR,
+                            'i.icon-checkbox-checked2[onclick*="single"]'
+                        )
+                        if not pending_icons:
+                            break
+                        pending_icon = pending_icons[0]
+                    except:
+                        pass
+
                     if self.register_participant(pending_icon):
                         initial_pending_count += 1
                         any_registered_in_sweep = True
                         self.logger.info("    ✓ Registered successfully.")
                         time.sleep(1)
 
-                        # Immediately extract email for this exact participant
-                        if user_link is not None:
-                            name, email = self.extract_email(user_link)
-                            if email:
-                                participants.append({
-                                    'course_id': course_id,
-                                    'name': name,
-                                    'email': email,
-                                    'status': 'NEW',
-                                    'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                                })
-                                self.logger.info(f"    ✓ Email captured: {name} - {email}")
-                            else:
-                                self.logger.warning(f"    ✗ Email not found for: {name}")
+                        if email:
+                            participants.append({
+                                'course_id': course_id,
+                                'name': name,
+                                'email': email,
+                                'status': 'NEW',
+                                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            })
+                            self.logger.info(f"    ✓ Email captured: {name} - {email}")
                         else:
-                            self.logger.warning("    ✗ No user link found; skipping email extraction for this participant.")
+                            self.logger.warning(f"    ✗ Email not found for: {name}")
 
                         # After registration on page 2, the site jumps to page 1.
                         # Break so the outer logic can restart the sweep.
