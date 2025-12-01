@@ -3,7 +3,7 @@ name: HR Course Automation
 on:
   schedule:
     # Runs every 4 hours: at 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC
-    - cron: '0 0,5,9,14 * * *'
+    - cron: '0 0,5,9,13 * * *'
   workflow_dispatch: # Allows manual triggering from GitHub UI
 
 jobs:
