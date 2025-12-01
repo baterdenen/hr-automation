@@ -410,13 +410,13 @@ def main():
     PASSWORD = os.getenv('HR_PASSWORD', "MqameaSd63WMrqd")
     SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', "1iKkOvTrujkfvShB0npGnyNktIBVuZU6iU9RBgc4DZME")
     COURSES = {
-        8473: "Chest pain",
-        8469: "Antibiotic",
-        8472: "Kidney",
-        8474: "ECG",
-        8470: "Zurkh em",
-        8475: "Glucocorticoid",
-        8471: "Hypertension"
+        8614: "Chest pain",
+        8613: "Antibiotic",
+        8615: "Kidney",
+        8618: "ECG",
+        8616: "Zurkh em",
+        8617: "Glucocorticoid",
+        8612: "Hypertension"
 
     }
     # ===================================
