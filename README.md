@@ -87,18 +87,4 @@ After script runs:
 3. Send emails using Google Sheets features
 4. Update "Email Sent" column
 
-## 🌐 Cloud Deployment (Optional)
-
-For 24/7 automation without your laptop:
-- Google Cloud Run (FREE tier)
-- PythonAnywhere ($5/month)
-- Deploy and forget!
-
-## 📞 Support
-
-- Email: nyam.bagi@gmail.com
-- Work: info@chagnuur.mn
-
----
-
 **Last Updated:** November 7, 2025
